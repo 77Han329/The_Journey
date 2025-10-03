@@ -7,7 +7,7 @@
   - 出队/取队首时，如果 `stack_out` 为空，则将 `stack_in` 中的元素全部倒入 `stack_out`，保证顺序。
   - `stack_out.pop()` 就能实现 **FIFO（先进先出）**。
 
----
+
 
 ## 🧩 代码实现
 ```python
