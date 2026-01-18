@@ -1,4 +1,4 @@
-# Journey2LLMEnineer
+# The_Journey
 
 This repository records my learning path and practice towards becoming a **Large Language Model (LLM) Algorithm Engineer**.  
 It combines three parts: **LeetCode practice**, **LLM theory notes**, and **LLM algorithm implementations**.
