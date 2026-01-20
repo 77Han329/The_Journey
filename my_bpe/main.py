@@ -13,7 +13,7 @@ def main():
     save_vocab(vocab, "vocab.json")
     # save_vocab_byte_idx(vocab, "vocab_byte_idx")
     save_merges(merges, "merges.txt")
-
+    
 
 if __name__ == "__main__":
     main()
