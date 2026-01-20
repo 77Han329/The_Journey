@@ -1,10 +1,6 @@
 from datasets import load_dataset
 
 
-
-
-
-
 def preprocessing(input_path:str) -> list[int]:
     
     if "TinyStories" in input_path:
@@ -157,20 +153,20 @@ def save_merges(merges: List[Tuple[bytes, bytes]], path: str) -> None:
             )
 
 
-def load_merges(path: str) -> List[Tuple[bytes, bytes]]:
-    """
-    Load merges from file.
-    Each line should be: <left>\t<right>
-    Empty lines are skipped, but lines with only tab (representing (b'', b'')) are preserved.
-    """
-    merges: List[Tuple[bytes, bytes]] = []
+def load_merges(path):
+    merges = []
     with open(path, "r", encoding="utf-8") as f:
         for line in f:
             line = line.rstrip("\n")
             if not line:
                 continue
 
-            left_str, right_str = line.split("\t", 1)
+            if "\t" in line:
+                left_str, right_str = line.split("\t", 1)
+            else:
+                # 兼容旧格式（空格）
+                left_str, right_str = line.split(" ", 1)
+
             merges.append(
                 (left_str.encode("latin-1"), right_str.encode("latin-1"))
             )
