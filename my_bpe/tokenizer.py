@@ -9,8 +9,7 @@ class Tokenizer:
         self.special_tokens = special_tokens or []
 
         # decode 用的反向表（非常有用）
-        self.id_to_bytes = vocab
-        self.bytes_to_id = {v: k for k, v in vocab.items()}
+        self.vocan_byte_idx = {v: k for k, v in vocab.items()}
 
     @classmethod
     def from_files(cls, vocab_path, merges_path, special_tokens=None):
@@ -26,5 +25,6 @@ class Tokenizer:
             yield from self.encode(text)
 
     def decode(self, ids: list[int]) -> str:
-        byte_seq = b"".join(self.vocab[i] for i in ids)
+        # 处理不存在的 token_id，使用替换字符
+        byte_seq = b"".join(self.vocab.get(i, b"") for i in ids)
         return byte_seq.decode("utf-8", errors="replace")

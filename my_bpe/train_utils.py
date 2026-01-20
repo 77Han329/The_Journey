@@ -76,8 +76,6 @@ def train_bpe(input_path: str, vocab_size: int, special_tokens: list[str]) -> tu
         
         idx = i + 256
         
-        print(f"merging {merge_pair} into {idx}")
-        
         input_ids = merge(input_ids=input_ids,
                         merge_pair=merge_pair,
                         idx=i+256)
@@ -162,6 +160,8 @@ def save_merges(merges: List[Tuple[bytes, bytes]], path: str) -> None:
 def load_merges(path: str) -> List[Tuple[bytes, bytes]]:
     """
     Load merges from file.
+    Each line should be: <left>\t<right>
+    Empty lines are skipped, but lines with only tab (representing (b'', b'')) are preserved.
     """
     merges: List[Tuple[bytes, bytes]] = []
     with open(path, "r", encoding="utf-8") as f:
