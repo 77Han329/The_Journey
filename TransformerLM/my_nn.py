@@ -1,6 +1,8 @@
 import torch.nn as nn
 import torch.nn.functional as F
 import torch
+from einops import rearrange
+from nn_utils import scaled_dot_product_attention
 
 
 class Embedding(nn.Module):
@@ -68,4 +70,63 @@ class Linear(nn.Module):
         """
 
         return torch.einsum("...i,oi->...o", x, self.weight)
+    
+class MultiHeadAttention(nn.Module):
+    def __init__(self,d_model:int, num_head:int, device=None, dtype=None):
+        super().__init__()
         
+        assert d_model % num_head ==0
+        
+        self.d_k = d_model // num_head
+        self.num_head = num_head
+        self.d_model = d_model
+        
+        self.proj_q = Linear(d_model,d_model,device=device,dtype=dtype)
+        self.proj_k = Linear(d_model,d_model,device=device,dtype=dtype)
+        self.proj_v = Linear(d_model,d_model,device=device,dtype=dtype)
+        
+        self.proj_out = Linear(d_model,d_model,device=device,dtype=dtype)
+        
+        
+    def forward(self,x):
+        
+        """
+        shape of X (B,S,d_model)
+        shape of w_q (d_model,d_model)
+        """
+        
+        batch_size, seq_len, _ = x.shape
+        mask = torch.tril(torch.ones(seq_len,seq_len,device=x.device, dtype=torch.bool))
+        
+        
+        # 用rerange 的写法（CS336 标准）
+        q = rearrange(self.proj_q(x),"b s (h d)->b h s d",h=self.num_head)
+        k = rearrange(self.proj_k(x),"b s (h d)->b h s d",h=self.num_head)
+        v = rearrange(self.proj_v(x),"b s (h d)->b h s d",h=self.num_head)
+        
+        attention_score = scaled_dot_product_attention(q,k,v,mask)
+        
+        
+        attention_score = rearrange(
+            attention_score,
+            "b h s d->b s (h d)"
+        )
+        
+        
+        ## 不用rerange 的写法
+        # batch_size, seq_len, _ = x.shape
+        # q = self.proj_q(x)
+        # k = self.proj_k(x)
+        # v = self.proj_v(x)
+        # k = k.T
+        # q = q.view(batch_size, seq_len, self.num_head, self.d_k).transpose(1, 2)
+        # k = k.view(batch_size, seq_len, self.num_head, self.d_k).transpose(1, 2)
+        # v = v.view(batch_size, seq_len, self.num_head, self.d_k).transpose(1, 2)
+        
+        # attention_score = scaled_dot_product_attention(q,k,v,mask)
+        
+        # attention_score = attention_score.transpose(1,2).contiguous().view(batch_size,seq_len,self.d_model)        
+        
+        output = self.proj_out(attention_score)
+        
+        return output
