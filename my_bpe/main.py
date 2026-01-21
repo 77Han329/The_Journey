@@ -22,12 +22,12 @@ def test_tokenizer():
 
 
 def main(data_path, vocab_size):
-    # print("Start Training BPE")
-    # vocab, merges = train_bpe(input_path=data_path, vocab_size=vocab_size,special_tokens=["<|endoftext|>"])
-    # print("End of Training")
-    # save_vocab(vocab=vocab,path="vocab.json")
+    print("Start Training BPE")
+    vocab, merges = train_bpe(input_path=data_path, vocab_size=vocab_size,special_tokens=["<|endoftext|>"])
+    print("End of Training")
+    save_vocab(vocab=vocab,path="vocab.json")
     
-    # save_merges(merges=merges,path="merges.txt")
+    save_merges(merges=merges,path="merges.txt")
 
     test_tokenizer()
 
