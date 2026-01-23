@@ -193,3 +193,43 @@ class SwiGlu(nn.Module):
         return output
         
         
+class RMSNorm(nn.Module):
+    def __init__(self, d_model: int, eps: float = 1e-5, device=None, dtype=None):
+        super().__init__()
+        
+        self.eps = eps
+        self.gamma = nn.Parameter(torch.ones(d_model,device=device,dtype=dtype))
+        
+    def rms(self,x):
+        
+        return torch.sqrt(torch.mean(x * x, dim=-1, keepdim=True) + self.eps)
+        
+    def forward(self,x):
+        
+        rms = self.rms(x)
+        
+        output = x / rms * self.gamma
+        
+        return output
+    
+    
+class LayerNorm(nn.Module):
+    def __init__(self, d_model: int, eps: float = 1e-5, device=None, dtype=None):
+        super().__init__()
+        
+        self.eps = eps
+        self.scale = nn.Parameter(torch.ones(d_model,device=device,dtype=dtype))
+        self.shift = nn.Parameter(torch.zeros(d_model,device=device,dtype=dtype))
+        
+        
+    def forward(self,x):
+        
+        mean = torch.mean(x,dim=-1,keepdim=True)
+        
+        var = torch.mean((x - mean) **2, dim=-1, keepdim=True)
+        
+        norm_x = (x - mean) / torch.sqrt(var + self.eps)
+        
+        output = norm_x * self.scale + self.shift 
+        
+        return output
