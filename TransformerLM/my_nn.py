@@ -130,3 +130,41 @@ class MultiHeadAttention(nn.Module):
         output = self.proj_out(attention_score)
         
         return output
+    
+    
+class RoPE(nn.Module):
+    def __init__(self, seq_len: int, d_k: int, theta=10000, device=None):
+        super().__init__()
+        
+        power = torch.arange(0,d_k,2,device=device).float() / d_k
+        
+        freq = 1.0 / theta**power
+        
+        token_position = torch.arange(seq_len,device=device)
+        
+        angle_mat = torch.outer(token_position,freq)
+        
+        self.register_buffer("cos_cache",angle_mat.cos(),persistent=False)
+        self.register_buffer("sin_cache",angle_mat.sin(),persistent=False)
+        
+    def forward(self,x, token_position):
+        
+        cos = self.cos_cache[token_position].to(x.dtype)
+        
+        sin = self.sin_cache[token_position].to(x.dtype)
+        
+        if x.ndim > cos.ndim and cos.ndim >= 3:
+            
+            cos = cos.unsqueeze(1)
+            sin = sin.unsqueeze(1)
+            
+            
+        output = torch.empty_like(x)
+        
+        x_even = x[...,0::2]
+        x_odd = x[...,1::2]
+        
+        output[...,0::2] = x_even * cos - x_odd * sin
+        output[...,1::2] = x_odd * cos + x_even * sin
+        
+        return output
