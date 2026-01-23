@@ -3,6 +3,7 @@ import torch.nn.functional as F
 import torch
 from einops import rearrange
 from nn_utils import scaled_dot_product_attention
+import nn_utils
 
 
 class Embedding(nn.Module):
@@ -168,3 +169,27 @@ class RoPE(nn.Module):
         output[...,1::2] = x_odd * cos + x_even * sin
         
         return output
+    
+
+class SwiGlu(nn.Module):
+    def __init__(self, d_model: int, d_ff:int, device=None, dtype=None):
+        super().__init__()
+        
+        self.d_ff = d_ff
+        self.d_model = d_model
+        
+        
+        self.w1 = Linear(out_features=d_ff, in_features=d_model,device=device,dtype=dtype)
+        self.w2 = Linear(out_features=d_model, in_features=d_ff,device=device,dtype=dtype)
+        self.w3 = Linear(out_features=d_ff, in_features=d_model,device=device,dtype=dtype)
+        
+    def forward(self,x:torch.Tensor)->torch.Tensor:
+        
+        gate = nn_utils.silu(self.w1(x)) 
+        signal = self.w3(x)
+        
+        output = self.w2(gate * signal)
+        
+        return output
+        
+        

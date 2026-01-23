@@ -42,3 +42,8 @@ def scaled_dot_product_attention(Q:torch.Tensor,
     res = torch.einsum("...nm,...mk->...nk",prob, V)
     
     return res
+
+
+def silu(in_features:torch.Tensor)->torch.Tensor:
+    
+    return in_features * torch.sigmoid(in_features)
