@@ -11,14 +11,14 @@ class Embedding(nn.Module):
     Input shape: (B, S)
     Output shape: (B, S, embd_size)
     """
-    def __init__(self, vocabsize: int, embd_size: int, device=None, dtype=None):
+    def __init__(self, vocabsize: int, d_model: int, device=None, dtype=None):
         super().__init__()
         
         factory_kwargs = {'device': device,
                          'dtype': dtype}
         
         self.weight = nn.Parameter(
-            (torch.empty(vocabsize, embd_size, **factory_kwargs))
+            (torch.empty(vocabsize, d_model, **factory_kwargs))
         )
         
         nn.init.trunc_normal_(self.weight, mean=0.0, std=1.0, a=-3.0, b=3.0)
@@ -73,7 +73,7 @@ class Linear(nn.Module):
         return torch.einsum("...i,oi->...o", x, self.weight)
     
 class MultiHeadAttention(nn.Module):
-    def __init__(self,d_model:int, num_head:int, device=None, dtype=None):
+    def __init__(self,d_model:int, num_head:int, context_len:int, device=None, dtype=None):
         super().__init__()
         
         assert d_model % num_head ==0
@@ -88,7 +88,11 @@ class MultiHeadAttention(nn.Module):
         
         self.proj_out = Linear(d_model,d_model,device=device,dtype=dtype)
         
-        
+        self.rope = RoPE(
+            seq_len=context_len,          # 或 max_seq_len
+            d_k=self.d_k,
+            device=device
+        )
     def forward(self,x):
         
         """
@@ -98,12 +102,20 @@ class MultiHeadAttention(nn.Module):
         
         batch_size, seq_len, _ = x.shape
         mask = torch.tril(torch.ones(seq_len,seq_len,device=x.device, dtype=torch.bool))
+        # causal mask: (1,1,S,S) 让它能 broadcast 到 (B,H,S,S)
+        mask = torch.tril(torch.ones(seq_len, seq_len, device=x.device, dtype=torch.bool)).unsqueeze(0).unsqueeze(0)
         
         
         # 用rerange 的写法（CS336 标准）
         q = rearrange(self.proj_q(x),"b s (h d)->b h s d",h=self.num_head)
         k = rearrange(self.proj_k(x),"b s (h d)->b h s d",h=self.num_head)
         v = rearrange(self.proj_v(x),"b s (h d)->b h s d",h=self.num_head)
+        
+        token_position = torch.arange(seq_len,device=x.device,)
+        
+        q = self.rope(q,token_position)
+        k = self.rope(k,token_position)
+        
         
         attention_score = scaled_dot_product_attention(q,k,v,mask)
         
@@ -233,3 +245,77 @@ class LayerNorm(nn.Module):
         output = norm_x * self.scale + self.shift 
         
         return output
+    
+    
+    
+    
+class AttentionBlock(nn.Module):
+    def __init__(self,d_model:int, num_head:int, d_ff:int,  theta=10000, device=None, dtype=None):
+        super().__init__()
+        
+        self.attn = MultiHeadAttention(
+            d_model=d_model,
+            num_head=num_head,
+            device=device,
+            dtype=dtype
+        )
+        
+        
+        self.ln_attn = RMSNorm(d_model=d_model, eps=1e-5, device=device, dtype=dtype)
+        self.ln_out = RMSNorm(d_model=d_model, eps=1e-5, device=device, dtype=dtype)
+        
+        self.ffn = SwiGlu(d_model=d_model, d_ff= d_ff, device=device, dtype=dtype)
+        
+    def forward(self,x:torch.Tensor):
+        
+        x = x + self.attn(self.ln_attn(x))
+        
+        return x + self.ffn(self.ln_out(x))
+    
+
+class TransformerLM(nn.Module):
+    def __init__(self, vocab_size:int, context_len:int, num_layer:int,
+                 d_model:int, num_head:int, d_ff:int, theta: float,
+                 device=None, dtype=None,
+                 use_rms_norm: bool=True,
+                 norm_mode: str="str",
+                 ffn_type: str = "swiglu"):
+        super().__init__()
+        
+        # 1. token embedding
+        
+        self.token_embeddings = Embedding(vocabsize=vocab_size,d_model=d_model,
+                                          device=device, dtype=dtype)
+        
+        # 2. num_layers Transformer Blocks
+        
+        self.transformer_block = nn.ModuleList([
+            AttentionBlock(
+                d_model=d_model,
+                num_head=num_head,
+                d_ff=d_ff,
+                theta=theta,
+                device=device,
+                dtype=dtype
+            )
+            for _ in range(num_layer)
+        ])
+        
+        if use_rms_norm:
+            self.out_norm = RMSNorm(d_model=d_model,device=device,dtype=dtype)
+            
+        else:
+            self.out_norm = nn.Identity()
+            
+        self.linear = Linear(in_features=d_model,out_features=vocab_size,dtype=dtype,device=device)
+        
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        # x: (B, S) token ids
+        h = self.token_embeddings(x)  # (B, S, d_model)
+
+        for blk in self.transformer_block:
+            h = blk(h)
+
+        h = self.out_norm(h)
+        logits = self.lm_head(h)      # (B, S, vocab_size)
+        return logits

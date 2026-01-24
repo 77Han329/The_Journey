@@ -47,3 +47,30 @@ def scaled_dot_product_attention(Q:torch.Tensor,
 def silu(in_features:torch.Tensor)->torch.Tensor:
     
     return in_features * torch.sigmoid(in_features)
+
+
+def cross_entropy(logits:torch.Tensor, targets: torch.Tensor)->torch.Tensor:
+    
+    ## 1. find the max of logis at dim -1
+    m = torch.max(logits,dim=-1,keepdim=True).values
+    
+    ## we need to find target logis
+    ## target shape : (b,s) -> target_logis: (b,s,1) represent the o_y, the logits for ground truth label
+    
+    target_logits = torch.gather(input=logits,
+                                 dim=-1,
+                                 index=targets.unsqueeze(-1)).squeeze(-1)
+    
+    def log_sum_exp(logits:torch.Tensor, m: torch.Tensor)->torch.Tensor:
+        ## shape of m (b,s,1)
+        output = torch.log(
+            torch.sum(torch.exp(logits - m), dim=-1)
+        ) + m.squeeze(-1)
+        
+        return output
+        
+        
+    loss = - target_logits + log_sum_exp(logits, m)
+    
+    
+    return torch.mean(loss)
